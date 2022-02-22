@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+<style>
+form {
+    margin: auto;
+    width: 35%;
+}
+.result {
+    margin: auto;
+    width: 35%;
+    border: 1px solid #ccc;
+}
+</style>
+<head>
+    <title>Mono Personal Finance Management Solution</title>
+</head>
+<form action="{{ url_for('main') }}" method="POST">
+    <fieldset>
+        <h2>Mono Personal Finance Management Solution</h2>
+        <legend>Input Text:</legend>
+        Input Text Narration:
+        <input name="narration" type="text" required  size="50">
+        <br>
+        <br>
+        <input type="submit">
+    </fieldset>
+</form>
+<br>
+<div class="result" align="center">
+    {% if result %}
+        {% for variable, value in original_input.items() %}
+            <b>{{ variable }}</b> : {{ value }}
+        {% endfor %}
+        <br>
+        <br> Predicted Spend Category:
+           <p style="font-size:50px">{{ result }}</p>
+    {% endif %}
+</div>
+</html>
