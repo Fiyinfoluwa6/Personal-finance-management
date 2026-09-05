@@ -118,7 +118,27 @@ docker build -t pfms .
 docker run -p 8000:8000 pfms
 ```
 
-### Option B — Render / Railway / Fly.io (managed PaaS)
+### Option B — Render (one-click Blueprint)
+
+A `render.yaml` blueprint is committed at the repo root. In Render:
+**New → Blueprint → select this repo**. Render reads the blueprint and creates a
+free web service configured with the right root directory, build/start commands,
+Python version, and health check — no manual field entry needed.
+
+To set it up manually instead (**New → Web Service**), use:
+
+| Field              | Value                                             |
+|--------------------|---------------------------------------------------|
+| Root Directory     | `web_app_mono`                                     |
+| Build Command      | `pip install -r requirements.txt && python train.py` |
+| Start Command      | `gunicorn app:app --bind 0.0.0.0:$PORT`           |
+| Health Check Path  | `/health`                                          |
+| Instance Type      | `Free`                                             |
+
+> The **Root Directory** must be `web_app_mono` because the app, `Procfile`,
+> `requirements.txt`, and `Dockerfile` all live in that subfolder.
+
+### Option C — Railway / Fly.io / Heroku (managed PaaS)
 
 These read the `Procfile` (`web: gunicorn app:app`) or the `Dockerfile`
 directly. Recommended settings:

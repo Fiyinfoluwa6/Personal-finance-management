@@ -1,0 +1,19 @@
+# Render Blueprint for the PFMS web app.
+# Deploy via Render dashboard: New -> Blueprint -> pick this repo.
+# Render reads this file from the repo root and configures the service for you.
+services:
+  - type: web
+    name: pfms
+    runtime: python
+    plan: free
+    # The app lives in a subfolder, so all commands run from there.
+    rootDir: web_app_mono
+    buildCommand: pip install -r requirements.txt && python train.py
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: PFMS_MAX_UPLOAD_MB
+        value: "10"
