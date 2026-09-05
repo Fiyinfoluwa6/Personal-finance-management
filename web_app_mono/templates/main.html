@@ -1,39 +1,128 @@
 <!doctype html>
-<html>
-<style>
-form {
-    margin: auto;
-    width: 35%;
-}
-.result {
-    margin: auto;
-    width: 35%;
-    border: 1px solid #ccc;
-}
-</style>
+<html lang="en">
 <head>
-    <title>Mono Personal Finance Management Solution</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PFMS — Personal Finance Management Solution</title>
+    <style>
+        :root { --bg:#0f172a; --card:#1e293b; --accent:#38bdf8; --text:#e2e8f0; --muted:#94a3b8; --border:#334155; }
+        * { box-sizing: border-box; }
+        body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); }
+        header { padding: 32px 16px 8px; text-align:center; }
+        header h1 { margin:0; font-size:1.6rem; }
+        header p { color:var(--muted); margin:6px 0 0; }
+        .container { max-width: 900px; margin: 0 auto; padding: 16px; }
+        .tabs { display:flex; gap:8px; justify-content:center; margin:20px 0; }
+        .tab { background:var(--card); border:1px solid var(--border); color:var(--text); padding:10px 18px; border-radius:8px; cursor:pointer; }
+        .tab.active { border-color:var(--accent); color:var(--accent); }
+        .panel { display:none; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; }
+        .panel.active { display:block; }
+        label { display:block; margin-bottom:6px; color:var(--muted); font-size:.9rem; }
+        input[type=text], input[type=file] { width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--bg); color:var(--text); }
+        button.submit { margin-top:14px; background:var(--accent); color:#04263a; border:none; padding:11px 20px; border-radius:8px; font-weight:600; cursor:pointer; }
+        .result { margin-top:18px; padding:16px; border-radius:8px; background:var(--bg); border:1px solid var(--border); }
+        .badge { display:inline-block; font-size:1.4rem; font-weight:700; color:var(--accent); }
+        table { width:100%; border-collapse:collapse; margin-top:14px; font-size:.9rem; }
+        th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); }
+        th { color:var(--muted); font-weight:600; }
+        .bar { height:8px; border-radius:4px; background:var(--accent); }
+        .muted { color:var(--muted); font-size:.85rem; }
+        .error { color:#f87171; margin-top:10px; }
+    </style>
 </head>
-<form action="{{ url_for('main') }}" method="POST">
-    <fieldset>
-        <h2>Mono Personal Finance Management Solution</h2>
-        <legend>Input Text:</legend>
-        Input Text Narration:
-        <input name="narration" type="text" required  size="50">
-        <br>
-        <br>
-        <input type="submit">
-    </fieldset>
-</form>
-<br>
-<div class="result" align="center">
-    {% if result %}
-        {% for variable, value in original_input.items() %}
-            <b>{{ variable }}</b> : {{ value }}
-        {% endfor %}
-        <br>
-        <br> Predicted Spend Category:
-           <p style="font-size:50px">{{ result }}</p>
-    {% endif %}
-</div>
+<body>
+    <header>
+        <h1>PFMS — Personal Finance Management Solution</h1>
+        <p>Classify bank transaction narrations into spend categories and analyse whole statements.</p>
+    </header>
+
+    <div class="container">
+        <div class="tabs">
+            <div class="tab active" data-tab="single">Single narration</div>
+            <div class="tab" data-tab="upload">Upload statement (CSV)</div>
+        </div>
+
+        <!-- Single narration -->
+        <div class="panel active" id="single">
+            <form action="{{ url_for('main') }}" method="POST">
+                <label for="narration">Transaction narration</label>
+                <input id="narration" name="narration" type="text" required size="50"
+                       placeholder="e.g. NIBSS Instant Payment Outward via GTWORLD TO WEMA john doe"
+                       value="{{ original_input.narration if original_input else '' }}">
+                <button class="submit" type="submit">Categorize</button>
+            </form>
+            {% if result %}
+            <div class="result">
+                <div class="muted">Predicted spend category</div>
+                <span class="badge">{{ result }}</span>
+                {% if confidence is not none %}
+                <div class="muted">Confidence: {{ (confidence * 100) | round(1) }}%</div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- CSV upload -->
+        <div class="panel" id="upload">
+            <label for="file">Bank statement CSV (must contain a narration/description column)</label>
+            <input id="file" type="file" accept=".csv">
+            <button class="submit" id="analyzeBtn">Analyze statement</button>
+            <div id="uploadError" class="error"></div>
+            <div id="analysis"></div>
+        </div>
+
+        {% if categories %}
+        <p class="muted" style="margin-top:20px;">Supported categories ({{ categories|length }}): {{ categories | join(', ') }}</p>
+        {% endif %}
+    </div>
+
+    <script>
+        document.querySelectorAll('.tab').forEach(function (t) {
+            t.addEventListener('click', function () {
+                document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+                document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+                t.classList.add('active');
+                document.getElementById(t.dataset.tab).classList.add('active');
+            });
+        });
+
+        document.getElementById('analyzeBtn').addEventListener('click', async function () {
+            const errEl = document.getElementById('uploadError');
+            const outEl = document.getElementById('analysis');
+            errEl.textContent = ''; outEl.innerHTML = '';
+            const fileInput = document.getElementById('file');
+            if (!fileInput.files.length) { errEl.textContent = 'Please choose a CSV file.'; return; }
+
+            const fd = new FormData();
+            fd.append('file', fileInput.files[0]);
+            outEl.innerHTML = '<p class="muted">Analyzing…</p>';
+            try {
+                const resp = await fetch('/api/analyze', { method: 'POST', body: fd });
+                const data = await resp.json();
+                if (!resp.ok) { outEl.innerHTML = ''; errEl.textContent = data.error || 'Request failed.'; return; }
+                renderAnalysis(data);
+            } catch (e) {
+                outEl.innerHTML = ''; errEl.textContent = 'Network error: ' + e.message;
+            }
+        });
+
+        function fmt(n) { return n.toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+
+        function renderAnalysis(data) {
+            const s = data.summary;
+            let html = '<div class="result"><div class="muted">Summary</div>' +
+                '<p>' + s.transaction_count + ' transactions · ' + s.category_count +
+                ' categories · total value ' + fmt(s.total_amount) + '</p></div>';
+
+            html += '<table><thead><tr><th>Category</th><th>Count</th><th>Total</th><th>Share</th></tr></thead><tbody>';
+            data.by_category.forEach(function (c) {
+                html += '<tr><td>' + c.category + '</td><td>' + c.count + '</td><td>' + fmt(c.total_amount) +
+                    '</td><td><div class="bar" style="width:' + Math.max(c.percentage, 2) + '%"></div>' +
+                    '<span class="muted">' + c.percentage + '%</span></td></tr>';
+            });
+            html += '</tbody></table>';
+            document.getElementById('analysis').innerHTML = html;
+        }
+    </script>
+</body>
 </html>
